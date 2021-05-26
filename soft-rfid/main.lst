@@ -1,0 +1,951 @@
+   1               		.file	"main.c"
+   2               	__SREG__ = 0x3f
+   3               	__SP_H__ = 0x3e
+   4               	__SP_L__ = 0x3d
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.global __do_copy_data
+   8               		.global __do_clear_bss
+   9               		.text
+  10               	.Ltext0:
+  11               	.global	InjectByte
+  13               	InjectByte:
+  14               	.LFB4:
+  15               		.file 1 "main.c"
+   1:main.c        **** /*License: GPLv3
+   2:main.c        ****  * RFID Decoding from http://www.mikrocontroller.net/articles/RFID_Türmodul , rfid.cpp by S. Seege
+   3:main.c        ****  * Author: Lukas K. <lu@0x83.eu> 
+   4:main.c        **** */
+   5:main.c        **** #define F_CPU 16000000
+   6:main.c        **** #include <util/delay.h> 
+   7:main.c        **** #include <avr/io.h>
+   8:main.c        **** #include "uart.h"
+   9:main.c        **** #include <avr/interrupt.h>
+  10:main.c        **** #include <stdlib.h>
+  11:main.c        **** unsigned volatile char rawtag[8];
+  12:main.c        **** unsigned char tag[5];
+  13:main.c        **** unsigned volatile char bytecnt=0;
+  14:main.c        **** unsigned volatile char bitcount=0;;
+  15:main.c        **** unsigned char insync = 0;
+  16:main.c        **** unsigned char tag_flag;
+  17:main.c        **** unsigned int last[7];
+  18:main.c        **** unsigned int sync = 0;
+  19:main.c        **** unsigned int synctimeout = 0;
+  20:main.c        **** unsigned int val;
+  21:main.c        **** unsigned char mode = 2;
+  22:main.c        **** unsigned char s,t;
+  23:main.c        **** #define SYNCTIMEOUT 500
+  24:main.c        **** #define THRES 500
+  25:main.c        **** 
+  26:main.c        **** void InjectByte(uint8_t b)
+  27:main.c        **** {
+  16               		.loc 1 27 0
+  17               	.LVL0:
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+  28:main.c        **** 	if (bytecnt < 8)
+  22               		.loc 1 28 0
+  23 0000 9091 0000 		lds r25,bytecnt
+  24 0004 9830      		cpi r25,lo8(8)
+  25 0006 00F4      		brsh .L1
+  29:main.c        **** 	{
+  30:main.c        **** 		rawtag[bytecnt++] = b;
+  26               		.loc 1 30 0
+  27 0008 9091 0000 		lds r25,bytecnt
+  28 000c E92F      		mov r30,r25
+  29 000e F0E0      		ldi r31,lo8(0)
+  30 0010 E050      		subi r30,lo8(-(rawtag))
+  31 0012 F040      		sbci r31,hi8(-(rawtag))
+  32 0014 8083      		st Z,r24
+  33 0016 9F5F      		subi r25,lo8(-(1))
+  34 0018 9093 0000 		sts bytecnt,r25
+  31:main.c        **** 		
+  32:main.c        **** 		if (bytecnt == 8)
+  35               		.loc 1 32 0
+  36 001c 8091 0000 		lds r24,bytecnt
+  37               	.LVL1:
+  38 0020 8830      		cpi r24,lo8(8)
+  39 0022 01F4      		brne .L1
+  40               	.LBB4:
+  41               	.LBB5:
+  33:main.c        **** 		{
+  34:main.c        **** 			ADCSRA &= ~(1<<ADATE);
+  42               		.loc 1 34 0
+  43 0024 3598      		cbi 38-0x20,5
+  35:main.c        **** 			bytecnt = 0;
+  44               		.loc 1 35 0
+  45 0026 1092 0000 		sts bytecnt,__zero_reg__
+  46               	.LVL2:
+  47               	.L1:
+  48 002a 0895      		ret
+  49               	.LBE5:
+  50               	.LBE4:
+  51               	.LFE4:
+  53               	.global	__vector_16
+  55               	__vector_16:
+  56               	.LFB5:
+  36:main.c        **** 		}
+  37:main.c        **** 	}
+  38:main.c        **** }
+  39:main.c        **** 
+  40:main.c        **** ISR(ADC_vect) {
+  57               		.loc 1 40 0
+  58 002c 1F92      		push r1
+  59               	.LCFI0:
+  60 002e 0F92      		push r0
+  61               	.LCFI1:
+  62 0030 0FB6      		in r0,__SREG__
+  63 0032 0F92      		push r0
+  64 0034 1124      		clr __zero_reg__
+  65 0036 2F93      		push r18
+  66               	.LCFI2:
+  67 0038 3F93      		push r19
+  68               	.LCFI3:
+  69 003a 4F93      		push r20
+  70               	.LCFI4:
+  71 003c 5F93      		push r21
+  72               	.LCFI5:
+  73 003e 6F93      		push r22
+  74               	.LCFI6:
+  75 0040 7F93      		push r23
+  76               	.LCFI7:
+  77 0042 8F93      		push r24
+  78               	.LCFI8:
+  79 0044 9F93      		push r25
+  80               	.LCFI9:
+  81 0046 AF93      		push r26
+  82               	.LCFI10:
+  83 0048 BF93      		push r27
+  84               	.LCFI11:
+  85 004a EF93      		push r30
+  86               	.LCFI12:
+  87 004c FF93      		push r31
+  88               	.LCFI13:
+  89               	/* prologue: Signal */
+  90               	/* frame size = 0 */
+  91               	/* stack size = 15 */
+  92               	.L__stack_usage = 15
+  41:main.c        **** 	//val = (last[0]+last[1]+last[2]+last[3]+last[4]+last[5]+last[6]+ADCW)/8;
+  42:main.c        **** 	val = (last[0]+last[1]+last[2]+ADCW)/4;
+  93               		.loc 1 42 0
+  94 004e 24B1      		in r18,36-0x20
+  95 0050 35B1      		in r19,36+1-0x20
+  96 0052 8091 0000 		lds r24,last+2
+  97 0056 9091 0000 		lds r25,last+2+1
+  98 005a 4091 0000 		lds r20,last
+  99 005e 5091 0000 		lds r21,last+1
+ 100 0062 840F      		add r24,r20
+ 101 0064 951F      		adc r25,r21
+ 102 0066 4091 0000 		lds r20,last+4
+ 103 006a 5091 0000 		lds r21,last+4+1
+ 104 006e 840F      		add r24,r20
+ 105 0070 951F      		adc r25,r21
+ 106 0072 820F      		add r24,r18
+ 107 0074 931F      		adc r25,r19
+ 108 0076 9695      		lsr r25
+ 109 0078 8795      		ror r24
+ 110 007a 9695      		lsr r25
+ 111 007c 8795      		ror r24
+ 112 007e 9093 0000 		sts val+1,r25
+ 113 0082 8093 0000 		sts val,r24
+ 114 0086 2091 0000 		lds r18,s
+  43:main.c        **** 	if(val > THRES) {
+ 115               		.loc 1 43 0
+ 116 008a 31E0      		ldi r19,hi8(501)
+ 117 008c 853F      		cpi r24,lo8(501)
+ 118 008e 9307      		cpc r25,r19
+ 119 0090 00F0      		brlo .L4
+  44:main.c        **** 		s |= (1<<0);
+ 120               		.loc 1 44 0
+ 121 0092 2160      		ori r18,lo8(1)
+ 122 0094 00C0      		rjmp .L14
+ 123               	.L4:
+  45:main.c        **** 		
+  46:main.c        **** 	}
+  47:main.c        **** 	else {
+  48:main.c        **** 		s &=~(1<<0);
+ 124               		.loc 1 48 0
+ 125 0096 2E7F      		andi r18,lo8(-2)
+ 126               	.L14:
+ 127 0098 2093 0000 		sts s,r18
+  49:main.c        **** 		
+  50:main.c        **** 	}
+  51:main.c        **** 	if(((s&3) == 0) || ((s&3) == 3)) { //no edge
+ 128               		.loc 1 51 0
+ 129 009c 8091 0000 		lds r24,s
+ 130 00a0 90E0      		ldi r25,lo8(0)
+ 131 00a2 8370      		andi r24,lo8(3)
+ 132 00a4 9070      		andi r25,hi8(3)
+ 133 00a6 2091 0000 		lds r18,t
+ 134 00aa 0097      		sbiw r24,0
+ 135 00ac 01F0      		breq .L6
+ 136               		.loc 1 51 0 is_stmt 0 discriminator 1
+ 137 00ae 8330      		cpi r24,3
+ 138 00b0 9105      		cpc r25,__zero_reg__
+ 139 00b2 01F4      		brne .L7
+ 140               	.L6:
+  52:main.c        **** 		t++;
+ 141               		.loc 1 52 0 is_stmt 1
+ 142 00b4 2F5F      		subi r18,lo8(-(1))
+ 143 00b6 2093 0000 		sts t,r18
+ 144 00ba 00C0      		rjmp .L8
+ 145               	.L7:
+  53:main.c        **** 	}
+  54:main.c        **** 	else { //any edge
+  55:main.c        **** 		if(t>5) {
+ 146               		.loc 1 55 0
+ 147 00bc 2630      		cpi r18,lo8(6)
+ 148 00be 00F4      		brsh .+2
+ 149 00c0 00C0      		rjmp .L8
+  56:main.c        **** 			sync <<= 1;
+ 150               		.loc 1 56 0
+ 151 00c2 2091 0000 		lds r18,sync
+ 152 00c6 3091 0000 		lds r19,sync+1
+ 153 00ca 220F      		lsl r18
+ 154 00cc 331F      		rol r19
+ 155 00ce 3093 0000 		sts sync+1,r19
+ 156 00d2 2093 0000 		sts sync,r18
+  57:main.c        **** 			bitcount++;
+ 157               		.loc 1 57 0
+ 158 00d6 4091 0000 		lds r20,bitcount
+ 159 00da 4F5F      		subi r20,lo8(-(1))
+ 160 00dc 4093 0000 		sts bitcount,r20
+  58:main.c        **** 			t=0;
+ 161               		.loc 1 58 0
+ 162 00e0 1092 0000 		sts t,__zero_reg__
+  59:main.c        **** 			if((s&3) == mode) {
+ 163               		.loc 1 59 0
+ 164 00e4 4091 0000 		lds r20,mode
+ 165 00e8 50E0      		ldi r21,lo8(0)
+ 166 00ea 8417      		cp r24,r20
+ 167 00ec 9507      		cpc r25,r21
+ 168 00ee 01F4      		brne .L9
+  60:main.c        **** 				sync |= 1;
+ 169               		.loc 1 60 0
+ 170 00f0 2160      		ori r18,lo8(1)
+ 171 00f2 3093 0000 		sts sync+1,r19
+ 172 00f6 2093 0000 		sts sync,r18
+  61:main.c        **** 				PORTB |= (1<<PB0);
+ 173               		.loc 1 61 0
+ 174 00fa C09A      		sbi 56-0x20,0
+ 175               	.L9:
+  62:main.c        **** 			}
+  63:main.c        **** 			/*if((s&3) == 2) {
+  64:main.c        **** 				PORTB &= ~(1<<PB0);
+  65:main.c        **** 			}*/
+  66:main.c        **** 			if (insync)
+ 176               		.loc 1 66 0
+ 177 00fc 8091 0000 		lds r24,insync
+ 178 0100 8823      		tst r24
+ 179 0102 01F0      		breq .L10
+  67:main.c        **** 			{
+  68:main.c        **** 				if ((bitcount % 8) == 0){
+ 180               		.loc 1 68 0
+ 181 0104 8091 0000 		lds r24,bitcount
+ 182 0108 8770      		andi r24,lo8(7)
+ 183 010a 01F4      		brne .L11
+  69:main.c        **** 					InjectByte(sync);
+ 184               		.loc 1 69 0
+ 185 010c 8091 0000 		lds r24,sync
+ 186 0110 0E94 0000 		call InjectByte
+ 187               	.L11:
+  70:main.c        **** 				}
+  71:main.c        **** 				if (bitcount == 64) {
+ 188               		.loc 1 71 0
+ 189 0114 8091 0000 		lds r24,bitcount
+ 190 0118 8034      		cpi r24,lo8(64)
+ 191 011a 01F4      		brne .L12
+  72:main.c        **** 					insync = 0;
+ 192               		.loc 1 72 0
+ 193 011c 1092 0000 		sts insync,__zero_reg__
+  73:main.c        **** 					PORTB &= ~(1<<PB1);
+ 194               		.loc 1 73 0
+ 195 0120 C198      		cbi 56-0x20,1
+ 196 0122 00C0      		rjmp .L12
+ 197               	.L10:
+  74:main.c        **** 				}
+  75:main.c        **** 			}
+  76:main.c        **** 			else
+  77:main.c        **** 				if ((sync & 0x3FF) == 0x1FF)
+ 198               		.loc 1 77 0
+ 199 0124 8091 0000 		lds r24,sync
+ 200 0128 9091 0000 		lds r25,sync+1
+ 201 012c 9370      		andi r25,hi8(1023)
+ 202 012e 21E0      		ldi r18,hi8(511)
+ 203 0130 8F3F      		cpi r24,lo8(511)
+ 204 0132 9207      		cpc r25,r18
+ 205 0134 01F4      		brne .L13
+  78:main.c        **** 				{
+  79:main.c        **** 					insync = 1;
+ 206               		.loc 1 79 0
+ 207 0136 81E0      		ldi r24,lo8(1)
+ 208 0138 8093 0000 		sts insync,r24
+  80:main.c        **** 					PORTB |= (1<<PB1);
+ 209               		.loc 1 80 0
+ 210 013c C19A      		sbi 56-0x20,1
+  81:main.c        **** 					bitcount = 9;
+ 211               		.loc 1 81 0
+ 212 013e 89E0      		ldi r24,lo8(9)
+ 213 0140 8093 0000 		sts bitcount,r24
+  82:main.c        **** 					bytecnt=0;
+ 214               		.loc 1 82 0
+ 215 0144 1092 0000 		sts bytecnt,__zero_reg__
+  83:main.c        **** 					InjectByte(sync);
+ 216               		.loc 1 83 0
+ 217 0148 8091 0000 		lds r24,sync
+ 218 014c 0E94 0000 		call InjectByte
+  84:main.c        **** 					synctimeout = 0;
+ 219               		.loc 1 84 0
+ 220 0150 1092 0000 		sts synctimeout+1,__zero_reg__
+ 221 0154 1092 0000 		sts synctimeout,__zero_reg__
+ 222 0158 00C0      		rjmp .L12
+ 223               	.L13:
+  85:main.c        **** 				}
+  86:main.c        **** 				else {
+  87:main.c        **** 					synctimeout++;
+ 224               		.loc 1 87 0
+ 225 015a 8091 0000 		lds r24,synctimeout
+ 226 015e 9091 0000 		lds r25,synctimeout+1
+ 227 0162 0196      		adiw r24,1
+ 228 0164 9093 0000 		sts synctimeout+1,r25
+ 229 0168 8093 0000 		sts synctimeout,r24
+ 230               	.L12:
+  88:main.c        **** 				}
+  89:main.c        **** 			
+  90:main.c        **** 			if(synctimeout > SYNCTIMEOUT) {
+ 231               		.loc 1 90 0
+ 232 016c 8091 0000 		lds r24,synctimeout
+ 233 0170 9091 0000 		lds r25,synctimeout+1
+ 234 0174 31E0      		ldi r19,hi8(501)
+ 235 0176 853F      		cpi r24,lo8(501)
+ 236 0178 9307      		cpc r25,r19
+ 237 017a 00F0      		brlo .L8
+  91:main.c        **** 				mode^=3;
+ 238               		.loc 1 91 0
+ 239 017c 8091 0000 		lds r24,mode
+ 240 0180 93E0      		ldi r25,lo8(3)
+ 241 0182 8927      		eor r24,r25
+ 242 0184 8093 0000 		sts mode,r24
+  92:main.c        **** 				synctimeout=0;
+ 243               		.loc 1 92 0
+ 244 0188 1092 0000 		sts synctimeout+1,__zero_reg__
+ 245 018c 1092 0000 		sts synctimeout,__zero_reg__
+ 246               	.L8:
+  93:main.c        **** 			}
+  94:main.c        **** 		}
+  95:main.c        **** 	}
+  96:main.c        **** 	
+  97:main.c        **** 
+  98:main.c        **** 	last[2] = last[1];
+ 247               		.loc 1 98 0
+ 248 0190 8091 0000 		lds r24,last+2
+ 249 0194 9091 0000 		lds r25,last+2+1
+ 250 0198 9093 0000 		sts last+4+1,r25
+ 251 019c 8093 0000 		sts last+4,r24
+  99:main.c        **** 	last[1] = last[0];
+ 252               		.loc 1 99 0
+ 253 01a0 8091 0000 		lds r24,last
+ 254 01a4 9091 0000 		lds r25,last+1
+ 255 01a8 9093 0000 		sts last+2+1,r25
+ 256 01ac 8093 0000 		sts last+2,r24
+ 100:main.c        **** 	last[0] = ADCW;
+ 257               		.loc 1 100 0
+ 258 01b0 84B1      		in r24,36-0x20
+ 259 01b2 95B1      		in r25,36+1-0x20
+ 260 01b4 9093 0000 		sts last+1,r25
+ 261 01b8 8093 0000 		sts last,r24
+ 101:main.c        **** 	
+ 102:main.c        **** 	s<<=1;
+ 262               		.loc 1 102 0
+ 263 01bc 8091 0000 		lds r24,s
+ 264 01c0 880F      		lsl r24
+ 265 01c2 8093 0000 		sts s,r24
+ 266               	/* epilogue start */
+ 103:main.c        **** }
+ 267               		.loc 1 103 0
+ 268 01c6 FF91      		pop r31
+ 269 01c8 EF91      		pop r30
+ 270 01ca BF91      		pop r27
+ 271 01cc AF91      		pop r26
+ 272 01ce 9F91      		pop r25
+ 273 01d0 8F91      		pop r24
+ 274 01d2 7F91      		pop r23
+ 275 01d4 6F91      		pop r22
+ 276 01d6 5F91      		pop r21
+ 277 01d8 4F91      		pop r20
+ 278 01da 3F91      		pop r19
+ 279 01dc 2F91      		pop r18
+ 280 01de 0F90      		pop r0
+ 281 01e0 0FBE      		out __SREG__,r0
+ 282 01e2 0F90      		pop r0
+ 283 01e4 1F90      		pop r1
+ 284 01e6 1895      		reti
+ 285               	.LFE5:
+ 287               	.global	adcinit
+ 289               	adcinit:
+ 290               	.LFB6:
+ 104:main.c        **** 	
+ 105:main.c        **** void adcinit(void) {
+ 291               		.loc 1 105 0
+ 292               	/* prologue: function */
+ 293               	/* frame size = 0 */
+ 294               	/* stack size = 0 */
+ 295               	.L__stack_usage = 0
+ 106:main.c        **** 	
+ 107:main.c        ****     ADMUX = (1<<REFS0)|(1<<REFS1); // interne Referenzspannung nutzen
+ 296               		.loc 1 107 0
+ 297 01e8 80EC      		ldi r24,lo8(-64)
+ 298 01ea 87B9      		out 39-0x20,r24
+ 108:main.c        ****  
+ 109:main.c        ****   ADCSRA = (1<<ADEN) | (1<<ADPS2) | (1<<ADPS1) |(1<<ADIE)|(1<<ADATE);
+ 299               		.loc 1 109 0
+ 300 01ec 8EEA      		ldi r24,lo8(-82)
+ 301 01ee 86B9      		out 38-0x20,r24
+ 302               	/* epilogue start */
+ 110:main.c        ****                                // setzen auf 8 (1) und ADC aktivieren (1)
+ 111:main.c        ****   
+ 112:main.c        ****   
+ 113:main.c        **** }
+ 303               		.loc 1 113 0
+ 304 01f0 0895      		ret
+ 305               	.LFE6:
+ 307               	.global	start_adc
+ 309               	start_adc:
+ 310               	.LFB7:
+ 114:main.c        **** 
+ 115:main.c        **** void start_adc(void) {
+ 311               		.loc 1 115 0
+ 312               	/* prologue: function */
+ 313               	/* frame size = 0 */
+ 314               	/* stack size = 0 */
+ 315               	.L__stack_usage = 0
+ 116:main.c        **** 	ADCSRA |= (1<<ADATE)|(1<<ADSC);
+ 316               		.loc 1 116 0
+ 317 01f2 86B1      		in r24,38-0x20
+ 318 01f4 8066      		ori r24,lo8(96)
+ 319 01f6 86B9      		out 38-0x20,r24
+ 320               	/* epilogue start */
+ 117:main.c        **** }
+ 321               		.loc 1 117 0
+ 322 01f8 0895      		ret
+ 323               	.LFE7:
+ 325               	.global	Execute
+ 327               	Execute:
+ 328               	.LFB8:
+ 118:main.c        **** 
+ 119:main.c        **** void Execute(void)
+ 120:main.c        **** {
+ 329               		.loc 1 120 0
+ 330 01fa 0F93      		push r16
+ 331               	.LCFI14:
+ 332 01fc 1F93      		push r17
+ 333               	.LCFI15:
+ 334 01fe CF93      		push r28
+ 335               	.LCFI16:
+ 336 0200 DF93      		push r29
+ 337               	.LCFI17:
+ 338               	/* prologue: function */
+ 339               	/* frame size = 0 */
+ 340               	/* stack size = 4 */
+ 341               	.L__stack_usage = 4
+ 121:main.c        **** 	uint8_t ibit, obit, i, lp, p;
+ 122:main.c        **** 	tag_flag=0;
+ 342               		.loc 1 122 0
+ 343 0202 1092 0000 		sts tag_flag,__zero_reg__
+ 344               	.LVL3:
+ 345 0206 86EF      		ldi r24,lo8(-10)
+ 346 0208 9FEF      		ldi r25,hi8(-10)
+ 123:main.c        **** 	
+ 124:main.c        **** 		//calc line parities
+ 125:main.c        **** 		i=0;
+ 126:main.c        **** 		p=0;
+ 347               		.loc 1 126 0
+ 348 020a 60E0      		ldi r22,lo8(0)
+ 127:main.c        **** 		lp=0;
+ 349               		.loc 1 127 0
+ 350 020c A0E0      		ldi r26,lo8(0)
+ 125:main.c        **** 		i=0;
+ 351               		.loc 1 125 0
+ 352 020e 70E0      		ldi r23,lo8(0)
+ 353               	.LVL4:
+ 354               	.L19:
+ 119:main.c        **** void Execute(void)
+ 355               		.loc 1 119 0
+ 356 0210 E82F      		mov r30,r24
+ 357 0212 E095      		com r30
+ 128:main.c        **** 		for (ibit=9; ibit<59; ibit++)
+ 129:main.c        **** 		{
+ 130:main.c        **** 			lp ^= (rawtag[ibit / 8] >> (7 - (ibit % 8))) & 0x01;
+ 358               		.loc 1 130 0
+ 359 0214 E695      		lsr r30
+ 360 0216 E695      		lsr r30
+ 361 0218 E695      		lsr r30
+ 362 021a F0E0      		ldi r31,lo8(0)
+ 363 021c E050      		subi r30,lo8(-(rawtag))
+ 364 021e F040      		sbci r31,hi8(-(rawtag))
+ 365 0220 2081      		ld r18,Z
+ 366 0222 30E0      		ldi r19,lo8(0)
+ 367 0224 AC01      		movw r20,r24
+ 368 0226 4770      		andi r20,lo8(7)
+ 369 0228 5070      		andi r21,hi8(7)
+ 370 022a 00C0      		rjmp 2f
+ 371 022c 3595      	1:	asr r19
+ 372 022e 2795      		ror r18
+ 373 0230 4A95      	2:	dec r20
+ 374 0232 02F4      		brpl 1b
+ 375 0234 2170      		andi r18,lo8(1)
+ 376 0236 A227      		eor r26,r18
+ 377               	.LVL5:
+ 131:main.c        **** 			
+ 132:main.c        **** 			i++;
+ 378               		.loc 1 132 0
+ 379 0238 7F5F      		subi r23,lo8(-(1))
+ 380               	.LVL6:
+ 133:main.c        **** 			if (i==5)
+ 381               		.loc 1 133 0
+ 382 023a 7530      		cpi r23,lo8(5)
+ 383 023c 01F4      		brne .L18
+ 384               	.LVL7:
+ 134:main.c        **** 			{
+ 135:main.c        **** 				i=0;
+ 136:main.c        **** 				p |= lp;
+ 385               		.loc 1 136 0
+ 386 023e 6A2B      		or r22,r26
+ 387               	.LVL8:
+ 135:main.c        **** 				i=0;
+ 388               		.loc 1 135 0
+ 389 0240 70E0      		ldi r23,lo8(0)
+ 390               	.LVL9:
+ 391               	.L18:
+ 392               		.loc 1 136 0
+ 393 0242 0197      		sbiw r24,1
+ 394               	.LVL10:
+ 128:main.c        **** 		for (ibit=9; ibit<59; ibit++)
+ 395               		.loc 1 128 0
+ 396 0244 2FEF      		ldi r18,hi8(-60)
+ 397 0246 843C      		cpi r24,lo8(-60)
+ 398 0248 9207      		cpc r25,r18
+ 399 024a 01F4      		brne .L19
+ 400 024c 8FE3      		ldi r24,lo8(63)
+ 401 024e 90E0      		ldi r25,hi8(63)
+ 402               	.LVL11:
+ 403               	.L22:
+ 119:main.c        **** void Execute(void)
+ 404               		.loc 1 119 0
+ 405 0250 782F      		mov r23,r24
+ 406 0252 7653      		subi r23,lo8(-(-54))
+ 407               	.LVL12:
+ 137:main.c        **** 			}
+ 138:main.c        **** 		}
+ 139:main.c        **** 			
+ 140:main.c        **** 		//calc line parities
+ 141:main.c        **** 		for (i=0; i<4; i++) //Check 4 columns
+ 142:main.c        **** 		{
+ 143:main.c        **** 			lp = 0;
+ 408               		.loc 1 143 0
+ 409 0254 A0E0      		ldi r26,lo8(0)
+ 144:main.c        **** 			for (ibit=9+i; ibit<9+55+i; ibit+=5)
+ 410               		.loc 1 144 0
+ 411 0256 00C0      		rjmp .L20
+ 412               	.LVL13:
+ 413               	.L21:
+ 145:main.c        **** 				lp ^= (rawtag[ibit / 8] >> (7 - (ibit % 8))) & 0x01;
+ 414               		.loc 1 145 0 discriminator 2
+ 415 0258 E72F      		mov r30,r23
+ 416 025a E695      		lsr r30
+ 417 025c E695      		lsr r30
+ 418 025e E695      		lsr r30
+ 419 0260 F0E0      		ldi r31,lo8(0)
+ 420 0262 E050      		subi r30,lo8(-(rawtag))
+ 421 0264 F040      		sbci r31,hi8(-(rawtag))
+ 422 0266 2081      		ld r18,Z
+ 423 0268 30E0      		ldi r19,lo8(0)
+ 424 026a 4095      		com r20
+ 425 026c 5095      		com r21
+ 426               	.LVL14:
+ 427 026e 4770      		andi r20,lo8(7)
+ 428 0270 5070      		andi r21,hi8(7)
+ 429 0272 00C0      		rjmp 2f
+ 430 0274 3595      	1:	asr r19
+ 431 0276 2795      		ror r18
+ 432 0278 4A95      	2:	dec r20
+ 433 027a 02F4      		brpl 1b
+ 434 027c 2170      		andi r18,lo8(1)
+ 435 027e A227      		eor r26,r18
+ 436               	.LVL15:
+ 144:main.c        **** 			for (ibit=9+i; ibit<9+55+i; ibit+=5)
+ 437               		.loc 1 144 0 discriminator 2
+ 438 0280 7B5F      		subi r23,lo8(-(5))
+ 439               	.LVL16:
+ 440               	.L20:
+ 144:main.c        **** 			for (ibit=9+i; ibit<9+55+i; ibit+=5)
+ 441               		.loc 1 144 0 is_stmt 0 discriminator 1
+ 442 0282 472F      		mov r20,r23
+ 443 0284 50E0      		ldi r21,lo8(0)
+ 444 0286 8417      		cp r24,r20
+ 445 0288 9507      		cpc r25,r21
+ 446 028a 04F4      		brge .L21
+ 447               	.LVL17:
+ 146:main.c        **** 			p |= lp;
+ 448               		.loc 1 146 0 is_stmt 1
+ 449 028c 6A2B      		or r22,r26
+ 450               	.LVL18:
+ 451 028e 0196      		adiw r24,1
+ 141:main.c        **** 		for (i=0; i<4; i++) //Check 4 columns
+ 452               		.loc 1 141 0
+ 453 0290 8334      		cpi r24,67
+ 454 0292 9105      		cpc r25,__zero_reg__
+ 455 0294 01F4      		brne .L22
+ 147:main.c        **** 		}
+ 148:main.c        **** 		
+ 149:main.c        **** 		//all parity bits ok ?
+ 150:main.c        **** 		if (!p)
+ 456               		.loc 1 150 0
+ 457 0296 6623      		tst r22
+ 458 0298 01F0      		breq .+2
+ 459 029a 00C0      		rjmp .L23
+ 151:main.c        **** 		{
+ 152:main.c        **** 			tag[0] = 0; tag[1] = 0; tag[2] = 0; tag[3] = 0; tag[4] = 0;
+ 460               		.loc 1 152 0
+ 461 029c 1092 0000 		sts tag,__zero_reg__
+ 462 02a0 1092 0000 		sts tag+1,__zero_reg__
+ 463 02a4 1092 0000 		sts tag+2,__zero_reg__
+ 464 02a8 1092 0000 		sts tag+3,__zero_reg__
+ 465 02ac 1092 0000 		sts tag+4,__zero_reg__
+ 466               	.LVL19:
+ 467 02b0 CFEF      		ldi r28,lo8(-1)
+ 468 02b2 DFEF      		ldi r29,hi8(-1)
+ 469 02b4 61E0      		ldi r22,lo8(1)
+ 470 02b6 70E0      		ldi r23,hi8(1)
+ 471               	.LVL20:
+ 153:main.c        **** 			//Remove parity bits
+ 154:main.c        **** 			ibit = 9;
+ 472               		.loc 1 154 0
+ 473 02b8 49E0      		ldi r20,lo8(9)
+ 155:main.c        **** 			for (obit=0; obit<40; obit++)
+ 156:main.c        **** 			{
+ 157:main.c        **** 				if ((rawtag[ibit / 8] >> (7 - (ibit % 8))) & 0x01)
+ 158:main.c        **** 					tag[obit / 8] |= 1 << (7 - (obit % 8));
+ 474               		.loc 1 158 0
+ 475 02ba 01E0      		ldi r16,lo8(1)
+ 476 02bc 10E0      		ldi r17,hi8(1)
+ 477               	.LVL21:
+ 478               	.L27:
+ 119:main.c        **** void Execute(void)
+ 479               		.loc 1 119 0
+ 480 02be E62F      		mov r30,r22
+ 481 02c0 E150      		subi r30,lo8(-(-1))
+ 157:main.c        **** 				if ((rawtag[ibit / 8] >> (7 - (ibit % 8))) & 0x01)
+ 482               		.loc 1 157 0
+ 483 02c2 A42F      		mov r26,r20
+ 484 02c4 A695      		lsr r26
+ 485 02c6 A695      		lsr r26
+ 486 02c8 A695      		lsr r26
+ 487 02ca B0E0      		ldi r27,lo8(0)
+ 488 02cc A050      		subi r26,lo8(-(rawtag))
+ 489 02ce B040      		sbci r27,hi8(-(rawtag))
+ 490 02d0 2C91      		ld r18,X
+ 491 02d2 30E0      		ldi r19,lo8(0)
+ 492 02d4 842F      		mov r24,r20
+ 493 02d6 90E0      		ldi r25,lo8(0)
+ 494 02d8 8095      		com r24
+ 495 02da 9095      		com r25
+ 496 02dc 8770      		andi r24,lo8(7)
+ 497 02de 9070      		andi r25,hi8(7)
+ 498 02e0 00C0      		rjmp 2f
+ 499 02e2 3595      	1:	asr r19
+ 500 02e4 2795      		ror r18
+ 501 02e6 8A95      	2:	dec r24
+ 502 02e8 02F4      		brpl 1b
+ 503 02ea 20FF      		sbrs r18,0
+ 504 02ec 00C0      		rjmp .L24
+ 505               		.loc 1 158 0
+ 506 02ee E695      		lsr r30
+ 507 02f0 E695      		lsr r30
+ 508 02f2 E695      		lsr r30
+ 509 02f4 F0E0      		ldi r31,lo8(0)
+ 510 02f6 E050      		subi r30,lo8(-(tag))
+ 511 02f8 F040      		sbci r31,hi8(-(tag))
+ 512 02fa CE01      		movw r24,r28
+ 513 02fc 8770      		andi r24,lo8(7)
+ 514 02fe 9070      		andi r25,hi8(7)
+ 515 0300 9801      		movw r18,r16
+ 516 0302 00C0      		rjmp 2f
+ 517 0304 220F      	1:	lsl r18
+ 518 0306 331F      		rol r19
+ 519 0308 8A95      	2:	dec r24
+ 520 030a 02F4      		brpl 1b
+ 521 030c C901      		movw r24,r18
+ 522 030e 9081      		ld r25,Z
+ 523 0310 982B      		or r25,r24
+ 524 0312 9083      		st Z,r25
+ 525               	.L24:
+ 526               	.LVL22:
+ 159:main.c        **** 				
+ 160:main.c        **** 				ibit++;
+ 161:main.c        **** 				if (((obit + 1) % 4) == 0)
+ 527               		.loc 1 161 0
+ 528 0314 CB01      		movw r24,r22
+ 529 0316 8370      		andi r24,lo8(3)
+ 530 0318 9070      		andi r25,hi8(3)
+ 531 031a 0097      		sbiw r24,0
+ 532 031c 01F0      		breq .L25
+ 160:main.c        **** 				ibit++;
+ 533               		.loc 1 160 0
+ 534 031e 4F5F      		subi r20,lo8(-(1))
+ 535               	.LVL23:
+ 536 0320 00C0      		rjmp .L26
+ 537               	.LVL24:
+ 538               	.L25:
+ 162:main.c        **** 					ibit++;
+ 539               		.loc 1 162 0
+ 540 0322 4E5F      		subi r20,lo8(-(2))
+ 541               	.LVL25:
+ 542               	.L26:
+ 543 0324 6F5F      		subi r22,lo8(-(1))
+ 544 0326 7F4F      		sbci r23,hi8(-(1))
+ 545 0328 2197      		sbiw r28,1
+ 155:main.c        **** 			for (obit=0; obit<40; obit++)
+ 546               		.loc 1 155 0
+ 547 032a 6932      		cpi r22,41
+ 548 032c 7105      		cpc r23,__zero_reg__
+ 549 032e 01F4      		brne .L27
+ 163:main.c        **** 			}
+ 164:main.c        **** 			
+ 165:main.c        **** 			if (tag_flag == 0)
+ 166:main.c        **** 				tag_flag = 1;
+ 550               		.loc 1 166 0
+ 551 0330 81E0      		ldi r24,lo8(1)
+ 552 0332 8093 0000 		sts tag_flag,r24
+ 167:main.c        **** 
+ 168:main.c        **** 			PORTB |= (1<<PB2);
+ 553               		.loc 1 168 0
+ 554 0336 C29A      		sbi 56-0x20,2
+ 555 0338 00C0      		rjmp .L17
+ 556               	.LVL26:
+ 557               	.L23:
+ 169:main.c        **** 		}
+ 170:main.c        **** 		else {
+ 171:main.c        **** 			PORTB &= ~(1<<PB2);
+ 558               		.loc 1 171 0
+ 559 033a C298      		cbi 56-0x20,2
+ 560               	.LVL27:
+ 561               	.L17:
+ 562               	/* epilogue start */
+ 172:main.c        **** 		}
+ 173:main.c        **** 		
+ 174:main.c        **** 	
+ 175:main.c        **** }
+ 563               		.loc 1 175 0
+ 564 033c DF91      		pop r29
+ 565 033e CF91      		pop r28
+ 566 0340 1F91      		pop r17
+ 567 0342 0F91      		pop r16
+ 568 0344 0895      		ret
+ 569               	.LFE8:
+ 571               		.section	.text.startup,"ax",@progbits
+ 572               	.global	main
+ 574               	main:
+ 575               	.LFB9:
+ 176:main.c        **** 
+ 177:main.c        **** int main(void) {
+ 576               		.loc 1 177 0
+ 577 0000 CF93      		push r28
+ 578               	.LCFI18:
+ 579 0002 DF93      		push r29
+ 580               	.LCFI19:
+ 581 0004 CDB7      		in r28,__SP_L__
+ 582 0006 DEB7      		in r29,__SP_H__
+ 583 0008 2A97      		sbiw r28,10
+ 584               	.LCFI20:
+ 585 000a 0FB6      		in __tmp_reg__,__SREG__
+ 586 000c F894      		cli
+ 587 000e DEBF      		out __SP_H__,r29
+ 588 0010 0FBE      		out __SREG__,__tmp_reg__
+ 589 0012 CDBF      		out __SP_L__,r28
+ 590               	/* prologue: function */
+ 591               	/* frame size = 10 */
+ 592               	/* stack size = 12 */
+ 593               	.L__stack_usage = 12
+ 178:main.c        **** 	uart_init();
+ 594               		.loc 1 178 0
+ 595 0014 0E94 0000 		call uart_init
+ 179:main.c        **** 	DDRD |= (1<<PD5);
+ 596               		.loc 1 179 0
+ 597 0018 8D9A      		sbi 49-0x20,5
+ 180:main.c        **** 	DDRB |= (1<<PB0) | (1<<PB1) | (1<<PB2) | (1<<PB3);
+ 598               		.loc 1 180 0
+ 599 001a 87B3      		in r24,55-0x20
+ 600 001c 8F60      		ori r24,lo8(15)
+ 601 001e 87BB      		out 55-0x20,r24
+ 181:main.c        **** 	TCCR1A |= (1<<COM1A0);
+ 602               		.loc 1 181 0
+ 603 0020 8FB5      		in r24,79-0x20
+ 604 0022 8064      		ori r24,lo8(64)
+ 605 0024 8FBD      		out 79-0x20,r24
+ 182:main.c        **** 	TCCR1B |= (1<<WGM12) | (1<<CS10);
+ 606               		.loc 1 182 0
+ 607 0026 8EB5      		in r24,78-0x20
+ 608 0028 8960      		ori r24,lo8(9)
+ 609 002a 8EBD      		out 78-0x20,r24
+ 183:main.c        **** 	OCR1A = 56;
+ 610               		.loc 1 183 0
+ 611 002c 88E3      		ldi r24,lo8(56)
+ 612 002e 90E0      		ldi r25,hi8(56)
+ 613 0030 9BBD      		out 74+1-0x20,r25
+ 614 0032 8ABD      		out 74-0x20,r24
+ 184:main.c        **** 	adcinit();
+ 615               		.loc 1 184 0
+ 616 0034 0E94 0000 		call adcinit
+ 185:main.c        **** 	//_delay_ms(1000);
+ 186:main.c        **** 	sei();
+ 617               		.loc 1 186 0
+ 618               	/* #APP */
+ 619               	 ;  186 "main.c" 1
+ 620 0038 7894      		sei
+ 621               	 ;  0 "" 2
+ 187:main.c        **** 	start_adc();
+ 622               		.loc 1 187 0
+ 623               	/* #NOAPP */
+ 624 003a 0E94 0000 		call start_adc
+ 625               	.L33:
+ 188:main.c        **** 	while (ADCSRA &(1<<ADATE))
+ 626               		.loc 1 188 0 discriminator 1
+ 627 003e 3599      		sbic 38-0x20,5
+ 628 0040 00C0      		rjmp .L33
+ 629               	.L43:
+ 189:main.c        **** 		;
+ 190:main.c        **** 
+ 191:main.c        **** 	unsigned char j;
+ 192:main.c        **** 	char ubuf[10];
+ 193:main.c        **** 	//start_adc();
+ 194:main.c        **** 	while(1){
+ 195:main.c        **** 		start_adc();
+ 630               		.loc 1 195 0
+ 631 0042 0E94 0000 		call start_adc
+ 632               	.L34:
+ 196:main.c        **** 		while (ADCSRA &(1<<ADATE))
+ 633               		.loc 1 196 0 discriminator 1
+ 634 0046 3599      		sbic 38-0x20,5
+ 635 0048 00C0      		rjmp .L34
+ 636               	.LVL28:
+ 197:main.c        **** 			;	
+ 198:main.c        **** 		j=0;
+ 199:main.c        **** 		Execute();
+ 637               		.loc 1 199 0
+ 638 004a 0E94 0000 		call Execute
+ 200:main.c        **** 		if(tag_flag) {
+ 639               		.loc 1 200 0
+ 640 004e 8091 0000 		lds r24,tag_flag
+ 641 0052 8823      		tst r24
+ 642 0054 01F0      		breq .L43
+ 643 0056 00E0      		ldi r16,lo8(tag)
+ 644 0058 10E0      		ldi r17,hi8(tag)
+ 645 005a 75E0      		ldi r23,lo8(5)
+ 646 005c F72E      		mov r15,r23
+ 647               	.LVL29:
+ 648               	.L36:
+ 201:main.c        **** 			while(j<5) {
+ 202:main.c        **** 				itoa(tag[j], ubuf, 16);
+ 649               		.loc 1 202 0
+ 650 005e F801      		movw r30,r16
+ 651 0060 8191      		ld r24,Z+
+ 652 0062 8F01      		movw r16,r30
+ 653 0064 90E0      		ldi r25,lo8(0)
+ 654 0066 BE01      		movw r22,r28
+ 655 0068 6F5F      		subi r22,lo8(-(1))
+ 656 006a 7F4F      		sbci r23,hi8(-(1))
+ 657 006c 40E1      		ldi r20,lo8(16)
+ 658 006e 50E0      		ldi r21,hi8(16)
+ 659 0070 0E94 0000 		call itoa
+ 203:main.c        **** 				uart_puts(ubuf);
+ 660               		.loc 1 203 0
+ 661 0074 CE01      		movw r24,r28
+ 662 0076 0196      		adiw r24,1
+ 663 0078 0E94 0000 		call uart_puts
+ 204:main.c        **** 				uart_putc(' ');
+ 664               		.loc 1 204 0
+ 665 007c 80E2      		ldi r24,lo8(32)
+ 666 007e 0E94 0000 		call uart_putc
+ 667 0082 FA94      		dec r15
+ 201:main.c        **** 			while(j<5) {
+ 668               		.loc 1 201 0
+ 669 0084 01F4      		brne .L36
+ 205:main.c        **** 				j++;
+ 206:main.c        **** 			}
+ 207:main.c        **** 			uart_putc('\n');
+ 670               		.loc 1 207 0
+ 671 0086 8AE0      		ldi r24,lo8(10)
+ 672 0088 0E94 0000 		call uart_putc
+ 673 008c 00C0      		rjmp .L43
+ 674               	.LFE9:
+ 676               		.comm t,1,1
+ 677               		.comm s,1,1
+ 678               	.global	mode
+ 679               		.data
+ 682               	mode:
+ 683 0000 02        		.byte	2
+ 684               		.comm val,2,1
+ 685               	.global	synctimeout
+ 686               	.global	synctimeout
+ 687               		.section .bss
+ 690               	synctimeout:
+ 691 0000 0000      		.skip 2,0
+ 692               	.global	sync
+ 693               	.global	sync
+ 696               	sync:
+ 697 0002 0000      		.skip 2,0
+ 698               		.comm last,14,1
+ 699               		.comm tag_flag,1,1
+ 700               	.global	insync
+ 701               	.global	insync
+ 704               	insync:
+ 705 0004 00        		.skip 1,0
+ 706               	.global	bitcount
+ 707               	.global	bitcount
+ 710               	bitcount:
+ 711 0005 00        		.skip 1,0
+ 712               	.global	bytecnt
+ 713               	.global	bytecnt
+ 716               	bytecnt:
+ 717 0006 00        		.skip 1,0
+ 718               		.comm tag,5,1
+ 719               		.comm rawtag,8,1
+ 911               	.Letext0:
+ 912               		.file 2 "/usr/lib/gcc/avr/4.6.1/../../../../avr/include/stdint.h"
+DEFINED SYMBOLS
+                            *ABS*:00000000 main.c
+     /tmp/cc2w0w61.s:2      *ABS*:0000003f __SREG__
+     /tmp/cc2w0w61.s:3      *ABS*:0000003e __SP_H__
+     /tmp/cc2w0w61.s:4      *ABS*:0000003d __SP_L__
+     /tmp/cc2w0w61.s:5      *ABS*:00000000 __tmp_reg__
+     /tmp/cc2w0w61.s:6      *ABS*:00000001 __zero_reg__
+     /tmp/cc2w0w61.s:13     .text:00000000 InjectByte
+     /tmp/cc2w0w61.s:716    .bss:00000006 bytecnt
+                            *COM*:00000008 rawtag
+     /tmp/cc2w0w61.s:55     .text:0000002c __vector_16
+                            *COM*:0000000e last
+                            *COM*:00000002 val
+                            *COM*:00000001 s
+                            *COM*:00000001 t
+     /tmp/cc2w0w61.s:696    .bss:00000002 sync
+     /tmp/cc2w0w61.s:710    .bss:00000005 bitcount
+     /tmp/cc2w0w61.s:682    .data:00000000 mode
+     /tmp/cc2w0w61.s:704    .bss:00000004 insync
+     /tmp/cc2w0w61.s:690    .bss:00000000 synctimeout
+     /tmp/cc2w0w61.s:289    .text:000001e8 adcinit
+     /tmp/cc2w0w61.s:309    .text:000001f2 start_adc
+     /tmp/cc2w0w61.s:327    .text:000001fa Execute
+                            *COM*:00000001 tag_flag
+                            *COM*:00000005 tag
+     /tmp/cc2w0w61.s:574    .text.startup:00000000 main
+
+UNDEFINED SYMBOLS
+__do_copy_data
+__do_clear_bss
+uart_init
+itoa
+uart_puts
+uart_putc
